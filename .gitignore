@@ -1,0 +1,43 @@
+# Dependências
+node_modules/
+
+# Build
+dist/
+
+# Ambiente
+.env
+.env.local
+.env.*.local
+
+# Arquivos temporários do bot
+*.mp3
+*.ogg
+*.mp4
+*.png
+*.jpg
+*.pptx
+voice_*.mp3
+image_*.jpg
+screenshot_*.png
+video_*.mp4
+apresentacao_*.pptx
+input_*.ogg
+audio_*.mp3
+audio_*.ogg
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
