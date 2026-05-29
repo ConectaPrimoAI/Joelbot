@@ -1,4 +1,3 @@
-```ts
 import pptxgen from "pptxgenjs";
 
 const COLORS = {
