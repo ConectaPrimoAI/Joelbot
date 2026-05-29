@@ -4,296 +4,295 @@ import path from "path";
 import { Context } from "telegraf";
 
 // ==========================================
-// DEFINIÇÃO DE TIPOS E INTERFACES
+// INTERFACES DO PAYLOAD DINÂMICO DA IA
 // ==========================================
-export type SlideSection = {
+
+// Cada slide agora é um objeto perfeitamente planejado pela IA
+export interface DynamicSlide {
   title: string;
-  content: string[];
-  type?: "auto" | "intro" | "quote" | "split" | "cards" | "metric" | "timeline";
+  layoutType: "title_cover" | "split_editorial" | "big_metric" | "cards_grid" | "impact_quote" | "full_text_center";
+  
+  // Elementos de conteúdo (A IA envia o texto já digerido, sem blocões longos)
+  contentBody?: string; 
+  subtitle?: string;
+  
+  // Metadados opcionais específicos para layouts complexos
   metadata?: {
-    subtitle?: string;
     quoteAuthor?: string;
     metricValue?: string;
     metricLabel?: string;
-    cards?: { title: string; desc: string }[];
-    timeline?: { date: string; label: string }[];
+    cards?: { cardTitle: string; cardDesc: string }[];
   };
-};
+}
 
-interface SlidesPayload {
+// O Payload mestre que a IA deve gerar para a Skill
+export interface DynamicPresentationPayload {
   topic: string;
-  themeName?: "netflix" | "apple" | "cyberpunk" | "editorial_nordic";
-  sections: SlideSection[];
+  presentationSettings: {
+    // A IA define a paleta perfeitamente baseada no tema (Ex: Amarelo/Marrom/Azul para Bob Esponja)
+    backgroundColor: string;    // Ex: "FFF01F"
+    surfaceColor: string;       // Ex: "FFFFFF"
+    primaryColor: string;       // Ex: "00A6FF"
+    accentColor: string;        // Ex: "8B4513"
+    textColor: string;          // Ex: "111111"
+    mutedColor: string;         // Ex: "555555"
+    fontHeading: string;        // Ex: "Impact" ou "Arial Black"
+    fontBody: string;           // Ex: "Arial" ou "Comic Sans MS"
+  };
+  slides: DynamicSlide[];
 }
-
-interface ThemeColors {
-  bg: string;
-  surface: string;
-  primary: string;
-  accent: string;
-  text: string;
-  muted: string;
-}
-
-const THEMES: Record<string, ThemeColors> = {
-  netflix: {
-    bg: "0B0B0F",
-    surface: "16161D",
-    primary: "E50914",
-    accent: "B9090B",
-    text: "FFFFFF",
-    muted: "B3B3B3",
-  },
-  apple: {
-    bg: "F5F5F7",
-    surface: "FFFFFF",
-    primary: "0071E3",
-    accent: "1D1D1F",
-    text: "111111",
-    muted: "6E6E73",
-  },
-  cyberpunk: {
-    bg: "09090B",
-    surface: "111827",
-    primary: "00F0FF",
-    accent: "FF007F",
-    text: "FFFFFF",
-    muted: "AAAAAA",
-  },
-  editorial_nordic: {
-    bg: "ECEFF4",
-    surface: "D8DEE9",
-    primary: "5E81AC",
-    accent: "81A1C1",
-    text: "2E3440",
-    muted: "4C566A",
-  }
-};
 
 export class SlidesSkill {
   name = "slides";
-  description = "Gerador Inteligente de Apresentações Cinemáticas Baseadas em IA";
+  description = "Engine Generativa de Apresentações Dinâmicas de Alto Nível de Design";
 
   canHandle(input: string): boolean {
     const text = input.toLowerCase();
     return text.includes("slide") || text.includes("ppt") || text.includes("apresentação");
   }
 
-  private detectBestLayout(section: SlideSection): Required<Pick<SlideSection, "type" | "metadata">> {
-    const contentText = section.content.join(" ");
-    const type = section.type && section.type !== "auto" ? section.type : "split";
-    const metadata: any = section.metadata || {};
-
-    if (section.type && section.type !== "auto") {
-      return { type, metadata };
-    }
-
-    if (contentText.includes("“") || contentText.includes('"') || (contentText.length < 90 && section.title.toLowerCase().includes("frase"))) {
-      return {
-        type: "quote",
-        metadata: { quoteAuthor: metadata.quoteAuthor || "Autor Desconhecido" }
-      };
-    }
-
-    const numMatch = contentText.match(/(\d+%\s*|\d+[kKMm]?\s+)(vagas|vidas|lucro|crescimento|habitantes|mortes)/i);
-    if (numMatch || metadata.metricValue) {
-      return {
-        type: "metric",
-        metadata: {
-          metricValue: metadata.metricValue || numMatch?.[1]?.trim() || "60M",
-          metricLabel: metadata.metricLabel || section.title.toUpperCase()
-        }
-      };
-    }
-
-    if (section.content.length > 1 || (contentText.includes(":") && contentText.split(/[.;]|\n/).length > 2)) {
-      if (!metadata.cards) {
-        const rawItems = contentText.split(/[.;]|\n/).filter(t => t.trim().length > 5);
-        metadata.cards = rawItems.slice(0, 3).map((item) => {
-          const splitIdx = item.indexOf(":");
-          return splitIdx !== -1 
-            ? { title: item.substring(0, splitIdx).trim(), desc: item.substring(splitIdx + 1).trim() }
-            : { title: "Destaque", desc: item.trim() };
-        });
-      }
-      return { type: "cards", metadata };
-    }
-
-    return { type: "split", metadata };
+  /**
+   * Remove caracteres estranhos de codificação/parsing que quebram o layout do PowerPoint
+   */
+  private cleanText(text: string | undefined): string {
+    if (!text) return "";
+    return text
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") // Remove caracteres de controle ASCII perigosos
+      .replace(/\\n/g, "\n")
+      .trim();
   }
 
   // ==========================================
-  // EXECUÇÃO DO FLUXO PRINCIPAL
+  // EXECUÇÃO DO MOTOR GERATIVO
   // ==========================================
   async execute(params: string, ctx: Context): Promise<any> {
     try {
-      let topic = "Apresentação Inteligente";
-      let themeName: keyof typeof THEMES = "netflix";
-      let rawSections: SlideSection[] = [];
+      let payload: DynamicPresentationPayload;
 
+      // 1. TENTATIVA DE PARSING DO JSON ENVIADO PELA IA
       try {
-        const parsed = JSON.parse(params) as SlidesPayload;
-        topic = parsed.topic || topic;
-        themeName = parsed.themeName || themeName;
-        rawSections = parsed.sections || [];
+        // Limpa possíveis marcações de bloco markdown que a IA costuma colocar (ex: ```json ... ```)
+        const cleanParams = params.replace(/```json/g, "").replace(/```/g, "").trim();
+        payload = JSON.parse(cleanParams) as DynamicPresentationPayload;
       } catch (e) {
-        topic = "Apresentação Automática";
-        rawSections = [{ title: "Introdução", content: [params], type: "split" }];
+        console.error("Falha ao ler JSON gerado pela IA. Ativando parser de segurança de texto bruto.");
+        // Fallback de segurança avançado se o prompt quebrar e enviar texto puro
+        payload = this.generateEmergencyPayload(params);
       }
 
-      const theme = THEMES[themeName] || THEMES.netflix;
+      // 2. INICIALIZAÇÃO DA BIBLIOTECA DE PPTX
       const PptxConstructor = pptxgen as any;
       const pptx = new PptxConstructor();
+      
+      // Define o layout moderno Widescreen (16:9) nativamente
       pptx.layout = "LAYOUT_WIDE";
 
-      const fontFace = themeName === "apple" ? "SF Pro Display" : "Arial Black";
-      const bodyFont = "Arial";
+      const cfg = payload.presentationSettings;
+      const fontHeading = cfg.fontHeading || "Arial Black";
+      const fontBody = cfg.fontBody || "Arial";
 
-      // Capa
-      const cover = pptx.addSlide();
-      cover.background = { color: theme.bg };
-
-      cover.addText("TOP 1 EM CONTEÚDO HOJE", {
-        x: 0.8, y: 1.2, w: 5, h: 0.3,
-        fontFace, fontSize: 11, bold: true, color: theme.primary, characterSpacing: 2
-      });
-
-      cover.addText(topic.toUpperCase(), {
-        x: 0.8, y: 1.6, w: 11.5, h: 2.2,
-        fontFace, fontSize: 44, bold: true, color: theme.text
-      });
-
-      cover.addShape("rect", {
-        x: 0.8, y: 4.2, w: 2.5, h: 0.4,
-        fill: { color: theme.primary }, line: { transparency: 100 }
-      });
-      cover.addText("► ASSISTIR AGORA", {
-        x: 0.9, y: 4.25, w: 2.3, h: 0.3,
-        fontFace, fontSize: 10, bold: true, color: "FFFFFF", align: "center"
-      });
-
-      cover.addText("SÉRIE ORIGINAL • TEMPORADA 1", {
-        x: 3.6, y: 4.25, w: 5, h: 0.3,
-        fontFace: bodyFont, fontSize: 11, bold: true, color: theme.muted
-      });
-
-      // Slides de Conteúdo
-      rawSections.forEach((rawSection, index) => {
+      // =================================================================
+      // VARREDURA E RENDERIZAÇÃO DOS SLIDES PLANEJADOS PELA IA
+      // =================================================================
+      payload.slides.forEach((slideData, index) => {
         const slide = pptx.addSlide();
-        slide.background = { color: theme.bg };
+        
+        // Define a cor de fundo escolhida pela IA para este projeto
+        slide.background = { color: cfg.backgroundColor };
 
-        slide.addText(`CAPÍTULO ${index + 1}`, {
-          x: 0.8, y: 0.5, w: 3, h: 0.2,
-          fontFace, fontSize: 10, color: theme.primary, characterSpacing: 3
-        });
+        // Define transição de slide elegante (Efeito de esmaecer/fade entre os slides)
+        // Isso remove o aspecto estático bruto do PPT padrão
+        (slide as any).slideTransition = { type: "fade", speed: "medium" };
 
-        const { type, metadata } = this.detectBestLayout(rawSection);
+        const titleText = this.cleanText(slideData.title);
+        const bodyText = this.cleanText(slideData.contentBody);
 
-        if (type === "split") {
-          slide.addText(rawSection.title.toUpperCase(), {
-            x: 0.8, y: 0.9, w: 5.0, h: 2.5,
-            fontFace, fontSize: 32, bold: true, color: theme.text, lineSpacing: 36
+        //--------------------------------------------------------------
+        // LAYOUT 1: COVER / CAPA CINEMÁTICA PERSONALIZADA
+        //--------------------------------------------------------------
+        if (slideData.layoutType === "title_cover" || index === 0) {
+          // Detalhe superior de design editorial
+          slide.addText(payload.topic.toUpperCase(), {
+            x: 0.8, y: 1.5, w: 11.5, h: 0.4,
+            fontFace: fontHeading, fontSize: 12, bold: true, color: cfg.primaryColor, characterSpacing: 3
+          });
+
+          // Título principal gigante
+          slide.addText(titleText, {
+            x: 0.8, y: 2.0, w: 11.5, h: 2.5,
+            fontFace: fontHeading, fontSize: 46, bold: true, color: cfg.textColor,
+            valign: "top"
+          });
+
+          // Subtítulo descritivo ou chamada de ação abaixo do título
+          const subText = slideData.subtitle || "UMA APRESENTAÇÃO EXCLUSIVA E COMPLETA";
+          slide.addText(this.cleanText(subText), {
+            x: 0.8, y: 4.8, w: 11.0, h: 0.8,
+            fontFace: fontBody, fontSize: 14, color: cfg.mutedColor
+          });
+
+          // Forma geométrica estilizada de rodapé (Linha de destaque elegante)
+          slide.addShape("rect", {
+            x: 0.8, y: 5.8, w: 3.5, h: 0.06,
+            fill: { color: cfg.accentColor }, line: { transparency: 100 }
+          });
+        }
+
+        //--------------------------------------------------------------
+        // LAYOUT 2: SPLIT EDITORIAL (Layout clássico de revista de luxo)
+        //--------------------------------------------------------------
+        else if (slideData.layoutType === "split_editorial") {
+          // Lado esquerdo: Título marcante ocupando espaço vertical
+          slide.addText(titleText, {
+            x: 0.8, y: 1.2, w: 5.0, h: 4.0,
+            fontFace: fontHeading, fontSize: 34, bold: true, color: cfg.textColor,
+            lineSpacing: 38, valign: "top"
+          });
+
+          // Divisor vertical físico de design
+          slide.addShape("rect", {
+            x: 6.2, y: 1.2, w: 0.04, h: 4.8,
+            fill: { color: cfg.primaryColor }, line: { transparency: 100 }
+          });
+
+          // Lado direito: Bloco de conteúdo bem distribuído e espaçado
+          slide.addText(bodyText, {
+            x: 6.6, y: 1.2, w: 5.9, h: 4.8,
+            fontFace: fontBody, fontSize: 16, color: cfg.mutedColor,
+            lineSpacing: 26, valign: "top"
+          });
+        }
+
+        //--------------------------------------------------------------
+        // LAYOUT 3: BIG METRIC (Foco em dados numéricos massivos)
+        //--------------------------------------------------------------
+        else if (slideData.layoutType === "big_metric") {
+          const metricValue = slideData.metadata?.metricValue || "99+";
+          const metricLabel = slideData.metadata?.metricLabel || titleText;
+
+          // O número em escala monumental
+          slide.addText(metricValue, {
+            x: 0.8, y: 1.2, w: 11.5, h: 2.2,
+            fontFace: fontHeading, fontSize: 120, bold: true, color: cfg.primaryColor
+          });
+
+          // Rótulo explicativo imediatamente abaixo
+          slide.addText(metricLabel.toUpperCase(), {
+            x: 0.9, y: 3.5, w: 11.0, h: 0.5,
+            fontFace: fontHeading, fontSize: 18, bold: true, color: cfg.textColor, characterSpacing: 1
+          });
+
+          // Contexto descritivo menor
+          if (bodyText) {
+            slide.addText(bodyText, {
+              x: 0.9, y: 4.2, w: 9.5, h: 1.8,
+              fontFace: fontBody, fontSize: 15, color: cfg.mutedColor, lineSpacing: 22
+            });
+          }
+        }
+
+        //--------------------------------------------------------------
+        // LAYOUT 4: CARDS GRID (Grade assimétrica de tópicos - Sem blocão!)
+        //--------------------------------------------------------------
+        else if (slideData.layoutType === "cards_grid" && slideData.metadata?.cards) {
+          slide.addText(titleText, {
+            x: 0.8, y: 0.8, w: 11.5, h: 0.6,
+            fontFace: fontHeading, fontSize: 26, bold: true, color: cfg.textColor
+          });
+
+          const cards = slideData.metadata.cards;
+          const cardCount = Math.min(cards.length, 4); // Suporta até 4 colunas perfeitamente distribuídas
+          const totalWidth = 11.73; // Área de trabalho útil (13.33 - margens)
+          const gap = 0.35;
+          const cardW = (totalWidth - (gap * (cardCount - 1))) / cardCount;
+
+          cards.slice(0, cardCount).forEach((card, i) => {
+            const cardX = 0.8 + i * (cardW + gap);
+
+            // Container plano de fundo do cartão para dar profundidade visual
+            slide.addShape("rect", {
+              x: cardX, y: 1.8, w: cardW, h: 4.4,
+              fill: { color: cfg.surfaceColor }, line: { color: cfg.accentColor, pt: 0.5 }
+            });
+
+            // Mini friso decorativo colorido no topo de cada bloco
+            slide.addShape("rect", {
+              x: cardX, y: 1.8, w: cardW, h: 0.08,
+              fill: { color: i === 0 ? cfg.primaryColor : cfg.accentColor }, line: { transparency: 100 }
+            });
+
+            // Título interno do card
+            slide.addText(this.cleanText(card.cardTitle).toUpperCase(), {
+              x: cardX + 0.25, y: 2.1, w: cardW - 0.5, h: 0.6,
+              fontFace: fontHeading, fontSize: 14, bold: true, color: cfg.textColor,
+              valign: "middle"
+            });
+
+            // Texto descritivo interno do card
+            slide.addText(this.cleanText(card.cardDesc), {
+              x: cardX + 0.25, y: 2.9, w: cardW - 0.5, h: 3.1,
+              fontFace: fontBody, fontSize: 13, color: cfg.mutedColor,
+              lineSpacing: 19, valign: "top"
+            });
+          });
+        }
+
+        //--------------------------------------------------------------
+        // LAYOUT 5: IMPACT QUOTE (Citações artísticas destacadas)
+        //--------------------------------------------------------------
+        else if (slideData.layoutType === "impact_quote") {
+          // Aspas artísticas transparentes gigantes servindo de background gráfico
+          slide.addText("“", {
+            x: 0.6, y: 0.8, w: 2.0, h: 1.8,
+            fontFace: fontHeading, fontSize: 160, bold: true, color: cfg.primaryColor, transparency: 75
+          });
+
+          // Frase central de impacto em tamanho expandido
+          slide.addText(bodyText || titleText, {
+            x: 1.2, y: 2.4, w: 10.5, h: 2.5,
+            fontFace: fontBody, fontSize: 26, italic: true, color: cfg.textColor,
+            lineSpacing: 38, valign: "middle"
+          });
+
+          // Autor da citação alinhado editorialmente
+          const author = slideData.metadata?.quoteAuthor || slideData.title;
+          slide.addText(`—  ${this.cleanText(author).toUpperCase()}`, {
+            x: 1.2, y: 5.2, w: 8.0, h: 0.4,
+            fontFace: fontHeading, fontSize: 13, bold: true, color: cfg.primaryColor, characterSpacing: 1
+          });
+        }
+
+        //--------------------------------------------------------------
+        // LAYOUT 6: FULL TEXT CENTER (Foco centralizado minimalista)
+        //--------------------------------------------------------------
+        else {
+          slide.addText(titleText.toUpperCase(), {
+            x: 1.0, y: 1.8, w: 11.33, h: 0.6,
+            align: "center", fontFace: fontHeading, fontSize: 28, bold: true, color: cfg.textColor
           });
 
           slide.addShape("rect", {
-            x: 6.4, y: 1.2, w: 0.05, h: 4.5,
-            fill: { color: theme.primary }, line: { transparency: 100 }
+            x: 5.4, y: 2.7, w: 2.5, h: 0.04,
+            fill: { color: cfg.primaryColor }, line: { transparency: 100 }
           });
 
-          slide.addText(rawSection.content.join("\n\n"), {
-            x: 6.8, y: 1.1, w: 5.7, h: 4.8,
-            fontFace: bodyFont, fontSize: 16, color: theme.muted, lineSpacing: 26
-          });
-        }
-        else if (type === "metric") {
-          slide.addText(metadata.metricValue, {
-            x: 0.8, y: 1.5, w: 11.5, h: 2.0,
-            fontFace, fontSize: 110, bold: true, color: theme.primary
-          });
-
-          slide.addText(metadata.metricLabel, {
-            x: 0.9, y: 3.7, w: 11.0, h: 0.5,
-            fontFace, fontSize: 18, bold: true, color: theme.text, characterSpacing: 1
-          });
-
-          slide.addText(rawSection.content[0], {
-            x: 0.9, y: 4.4, w: 9.0, h: 1.8,
-            fontFace: bodyFont, fontSize: 16, color: theme.muted, lineSpacing: 24
-          });
-        }
-        else if (type === "cards" && metadata.cards) {
-          slide.addText(rawSection.title.toUpperCase(), {
-            x: 0.8, y: 0.9, w: 11.5, h: 0.6,
-            fontFace, fontSize: 24, bold: true, color: theme.text
-          });
-
-          const cardCount = Math.min(metadata.cards.length, 3);
-          const totalWidth = 11.73; 
-          const gap = 0.4;
-          const cardW = (totalWidth - (gap * (cardCount - 1))) / cardCount;
-
-          metadata.cards.forEach((card: any, i: number) => {
-            const cardX = 0.8 + i * (cardW + gap);
-
-            slide.addShape("rect", {
-              x: cardX, y: 2.0, w: cardW, h: 4.2,
-              fill: { color: theme.surface }, line: { transparency: 100 }
-            });
-
-            slide.addShape("rect", {
-              x: cardX, y: 2.0, w: cardW, h: 0.08,
-              fill: { color: i === 0 ? theme.primary : theme.muted }, line: { transparency: 100 }
-            });
-
-            slide.addText(card.title.toUpperCase(), {
-              x: cardX + 0.3, y: 2.4, w: cardW - 0.6, h: 0.5,
-              fontFace, fontSize: 14, bold: true, color: theme.text
-            });
-
-            slide.addText(card.desc, {
-              x: cardX + 0.3, y: 3.1, w: cardW - 0.6, h: 2.8,
-              fontFace: bodyFont, fontSize: 13, color: theme.muted, lineSpacing: 20
-            });
-          });
-        }
-        else if (type === "quote") {
-          slide.addText("“", {
-            x: 0.8, y: 1.0, w: 2.0, h: 1.5,
-            fontFace, fontSize: 140, bold: true, color: theme.primary, transparency: 60
-          });
-
-          slide.addText(rawSection.content[0], {
-            x: 1.2, y: 2.5, w: 10.5, h: 2.5,
-            fontFace: bodyFont, fontSize: 26, italic: true, color: theme.text, lineSpacing: 40
-          });
-
-          slide.addText(`—  ${metadata.quoteAuthor || rawSection.title}`, {
-            x: 1.2, y: 5.4, w: 8.0, h: 0.4,
-            fontFace, fontSize: 14, bold: true, color: theme.primary, characterSpacing: 1
+          slide.addText(bodyText, {
+            x: 1.5, y: 3.2, w: 10.33, h: 3.0,
+            align: "center", fontFace: fontBody, fontSize: 18, color: cfg.mutedColor,
+            lineSpacing: 28, valign: "top"
           });
         }
 
+        // NÚMERAÇÃO CINEMÁTICA DE PÁGINAS NO RODAPÉ (Ex: 01, 02...)
         slide.addText(String(index + 1).padStart(2, "0"), {
-          x: 12.0, y: 6.8, w: 0.5, h: 0.3,
-          fontFace, fontSize: 10, color: theme.muted, align: "right"
+          x: 12.0, y: 6.9, w: 0.5, h: 0.3,
+          fontFace: fontHeading, fontSize: 10, color: cfg.mutedColor, align: "right"
         });
       });
 
-      // Slide Final
-      const end = pptx.addSlide();
-      end.background = { color: theme.bg };
-
-      end.addText("FIM DA APRESENTAÇÃO", {
-        x: 1, y: 3.0, w: 11.33, h: 0.4,
-        align: "center", fontFace, fontSize: 12, bold: true, color: theme.primary, characterSpacing: 4
-      });
-
-      end.addText("N", {
-        x: 1, y: 3.6, w: 11.33, h: 1.2,
-        align: "center", fontFace, fontSize: 54, bold: true, color: theme.primary
-      });
-
-      // Salvar e Enviar
+      // ==========================================
+      // SALVAMENTO SEGURO E ENVIO VIA STREAM
+      // ==========================================
       const fileName = `apresentacao_${Date.now()}.pptx`;
       const filePath = path.join(process.cwd(), fileName);
 
@@ -304,26 +303,49 @@ export class SlidesSkill {
           source: fs.createReadStream(filePath),
           filename: fileName,
         });
-        fs.unlinkSync(filePath);
         
-        // Retorna um formato universal compatível com as regras de SkillResult do bot
-        return { 
-          success: true, 
-          text: "Slides cinematográficos gerados e enviados!",
-          output: "Slides cinematográficos gerados e enviados!"
+        // Exclusão física do arquivo local para evitar gargalo de disco no Render
+        fs.unlinkSync(filePath);
+
+        return {
+          success: true,
+          text: `Apresentação sobre "${payload.topic}" contendo ${payload.slides.length} slides estilizados sob medida gerada com sucesso.`,
+          output: "PPTX enviado com sucesso!"
         };
       } else {
-        throw new Error("Falha física na escrita do arquivo PPTX.");
+        throw new Error("PowerPoint File Write Verification Error.");
       }
 
     } catch (error) {
-      console.error("Erro crítico no motor de slides:", error);
-      await ctx.reply("Erro interno ao sintetizar e estilizar os slides.");
-      return { 
-        success: false, 
-        text: "Erro ao gerar os slides.", 
-        output: "Erro ao gerar os slides." 
-      };
+      console.error("Erro crítico na engine de renderização de slides:", error);
+      await ctx.reply("Desculpe, ocorreu um erro interno ao pintar e arquitetar os arquivos desta apresentação.");
+      return { success: false, text: "Falha na geração dos slides." };
     }
+  }
+
+  // =================================================================
+  // ESTRUTURA DE FALLBACK SE A IA FALHAR EM RETORNAR JSON VÁLIDO
+  // =================================================================
+  private generateEmergencyPayload(rawText: string): DynamicPresentationPayload {
+    return {
+      topic: "Apresentação Inteligente",
+      presentationSettings: {
+        backgroundColor: "111116",
+        surfaceColor: "1B1B22",
+        primaryColor: "FF3366",
+        accentColor: "FF1144",
+        textColor: "FFFFFF",
+        mutedColor: "A0A0AA",
+        fontHeading: "Arial Black",
+        fontBody: "Arial"
+      },
+      slides: [
+        {
+          title: "Análise de Conteúdo Estruturado",
+          layoutType: "full_text_center",
+          contentBody: rawText.substring(0, 600)
+        }
+      ]
+    };
   }
 }
