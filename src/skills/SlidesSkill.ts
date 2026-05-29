@@ -20,7 +20,6 @@ export type SlideSection = {
   };
 };
 
-// Interface esperada pelo payload de entrada estruturado por JSON
 interface SlidesPayload {
   topic: string;
   themeName?: "netflix" | "apple" | "cyberpunk" | "editorial_nordic";
@@ -80,9 +79,6 @@ export class SlidesSkill {
     return text.includes("slide") || text.includes("ppt") || text.includes("apresentação");
   }
 
-  // ==========================================
-  // MOTOR DE CLASSIFICAÇÃO SEMÂNTICA (IA)
-  // ==========================================
   private detectBestLayout(section: SlideSection): Required<Pick<SlideSection, "type" | "metadata">> {
     const contentText = section.content.join(" ");
     const type = section.type && section.type !== "auto" ? section.type : "split";
@@ -92,7 +88,6 @@ export class SlidesSkill {
       return { type, metadata };
     }
 
-    // 1. Detecção de citações
     if (contentText.includes("“") || contentText.includes('"') || (contentText.length < 90 && section.title.toLowerCase().includes("frase"))) {
       return {
         type: "quote",
@@ -100,7 +95,6 @@ export class SlidesSkill {
       };
     }
 
-    // 2. Detecção de métricas / números grandes
     const numMatch = contentText.match(/(\d+%\s*|\d+[kKMm]?\s+)(vagas|vidas|lucro|crescimento|habitantes|mortes)/i);
     if (numMatch || metadata.metricValue) {
       return {
@@ -112,7 +106,6 @@ export class SlidesSkill {
       };
     }
 
-    // 3. Detecção de Listas e Cards
     if (section.content.length > 1 || (contentText.includes(":") && contentText.split(/[.;]|\n/).length > 2)) {
       if (!metadata.cards) {
         const rawItems = contentText.split(/[.;]|\n/).filter(t => t.trim().length > 5);
@@ -130,30 +123,25 @@ export class SlidesSkill {
   }
 
   // ==========================================
-  // EXECUÇÃO DO FLUXO PRINCIPAL (Conforme Contrato da Skill)
+  // EXECUÇÃO DO FLUXO PRINCIPAL
   // ==========================================
-  async execute(params: string, ctx: Context) {
+  async execute(params: string, ctx: Context): Promise<any> {
     try {
       let topic = "Apresentação Inteligente";
       let themeName: keyof typeof THEMES = "netflix";
       let rawSections: SlideSection[] = [];
 
-      // Tenta interpretar os parâmetros como JSON enviado pela IA.
-      // Se falhar (for texto puro), monta uma estrutura padrão emergencial.
       try {
         const parsed = JSON.parse(params) as SlidesPayload;
         topic = parsed.topic || topic;
         themeName = parsed.themeName || themeName;
         rawSections = parsed.sections || [];
       } catch (e) {
-        // Fallback: Se os parâmetros forem texto simples puro, converte em um slide básico
         topic = "Apresentação Automática";
         rawSections = [{ title: "Introdução", content: [params], type: "split" }];
       }
 
       const theme = THEMES[themeName] || THEMES.netflix;
-      
-      // SOLUÇÃO ERRO TS2351: Instanciação dinâmica ignorando tipagem restrita do módulo
       const PptxConstructor = pptxgen as any;
       const pptx = new PptxConstructor();
       pptx.layout = "LAYOUT_WIDE";
@@ -161,9 +149,7 @@ export class SlidesSkill {
       const fontFace = themeName === "apple" ? "SF Pro Display" : "Arial Black";
       const bodyFont = "Arial";
 
-      // =====================================
-      // 1. CAPA ESTILO NETFLIX ORIGINAL
-      // =====================================
+      // Capa
       const cover = pptx.addSlide();
       cover.background = { color: theme.bg };
 
@@ -191,9 +177,7 @@ export class SlidesSkill {
         fontFace: bodyFont, fontSize: 11, bold: true, color: theme.muted
       });
 
-      // =====================================
-      // 2. PROCESSAMENTO INTELIGENTE DOS SLIDES
-      // =====================================
+      // Slides de Conteúdo
       rawSections.forEach((rawSection, index) => {
         const slide = pptx.addSlide();
         slide.background = { color: theme.bg };
@@ -205,9 +189,6 @@ export class SlidesSkill {
 
         const { type, metadata } = this.detectBestLayout(rawSection);
 
-        // -------------------------------------
-        // LAYOUT A: SPLIT
-        // -------------------------------------
         if (type === "split") {
           slide.addText(rawSection.title.toUpperCase(), {
             x: 0.8, y: 0.9, w: 5.0, h: 2.5,
@@ -224,10 +205,6 @@ export class SlidesSkill {
             fontFace: bodyFont, fontSize: 16, color: theme.muted, lineSpacing: 26
           });
         }
-
-        // -------------------------------------
-        // LAYOUT B: METRIC
-        // -------------------------------------
         else if (type === "metric") {
           slide.addText(metadata.metricValue, {
             x: 0.8, y: 1.5, w: 11.5, h: 2.0,
@@ -244,10 +221,6 @@ export class SlidesSkill {
             fontFace: bodyFont, fontSize: 16, color: theme.muted, lineSpacing: 24
           });
         }
-
-        // -------------------------------------
-        // LAYOUT C: CARDS
-        // -------------------------------------
         else if (type === "cards" && metadata.cards) {
           slide.addText(rawSection.title.toUpperCase(), {
             x: 0.8, y: 0.9, w: 11.5, h: 0.6,
@@ -283,10 +256,6 @@ export class SlidesSkill {
             });
           });
         }
-
-        // -------------------------------------
-        // LAYOUT D: QUOTE
-        // -------------------------------------
         else if (type === "quote") {
           slide.addText("“", {
             x: 0.8, y: 1.0, w: 2.0, h: 1.5,
@@ -310,9 +279,7 @@ export class SlidesSkill {
         });
       });
 
-      // =====================================
-      // 3. SLIDE FINAL
-      // =====================================
+      // Slide Final
       const end = pptx.addSlide();
       end.background = { color: theme.bg };
 
@@ -326,9 +293,7 @@ export class SlidesSkill {
         align: "center", fontFace, fontSize: 54, bold: true, color: theme.primary
       });
 
-      // =====================================
-      // SALVAMENTO E ENVIO
-      // =====================================
+      // Salvar e Enviar
       const fileName = `apresentacao_${Date.now()}.pptx`;
       const filePath = path.join(process.cwd(), fileName);
 
@@ -340,7 +305,13 @@ export class SlidesSkill {
           filename: fileName,
         });
         fs.unlinkSync(filePath);
-        return { success: true, message: "Slides gerados e enviados com sucesso!" };
+        
+        // Retorna um formato universal compatível com as regras de SkillResult do bot
+        return { 
+          success: true, 
+          text: "Slides cinematográficos gerados e enviados!",
+          output: "Slides cinematográficos gerados e enviados!"
+        };
       } else {
         throw new Error("Falha física na escrita do arquivo PPTX.");
       }
@@ -348,7 +319,11 @@ export class SlidesSkill {
     } catch (error) {
       console.error("Erro crítico no motor de slides:", error);
       await ctx.reply("Erro interno ao sintetizar e estilizar os slides.");
-      return { success: false, error };
+      return { 
+        success: false, 
+        text: "Erro ao gerar os slides.", 
+        output: "Erro ao gerar os slides." 
+      };
     }
   }
 }
