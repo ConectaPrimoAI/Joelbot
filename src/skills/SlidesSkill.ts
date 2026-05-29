@@ -1,5 +1,4 @@
-
-import PptxGenJS from "pptxgenjs";
+import pptxgen from "pptxgenjs";
 import fs from "fs";
 import path from "path";
 import { Context } from "telegraf";
@@ -35,7 +34,7 @@ const THEMES = {
   },
 };
 
-function splitTextIntoSlides(text: string): string[] {
+function splitText(text: string): string[] {
   const sentences = text
     .replace(/\n/g, " ")
     .split(/(?<=[.!?])\s+/);
@@ -69,9 +68,9 @@ function normalizeSections(
   const finalSlides: SlideSection[] = [];
 
   sections.forEach((section) => {
-    const joined = section.content.join(" ");
+    const text = section.content.join(" ");
 
-    const chunks = splitTextIntoSlides(joined);
+    const chunks = splitText(text);
 
     chunks.forEach((chunk, index) => {
       finalSlides.push({
@@ -89,6 +88,21 @@ function normalizeSections(
 }
 
 export class SlidesSkill {
+  name = "slides";
+
+  description =
+    "Generate cinematic PowerPoint presentations";
+
+  canHandle(input: string): boolean {
+    const text = input.toLowerCase();
+
+    return (
+      text.includes("slide") ||
+      text.includes("ppt") ||
+      text.includes("apresentação")
+    );
+  }
+
   async execute(
     ctx: Context,
     topic: string,
@@ -104,15 +118,9 @@ export class SlidesSkill {
       const sections =
         normalizeSections(rawSections);
 
-      const pptx = new PptxGenJS();
+      const pptx: any = new (pptxgen as any)();
 
       pptx.layout = "LAYOUT_WIDE";
-
-      pptx.author = "JoelBot AI";
-      pptx.company = "JoelBot";
-      pptx.subject = topic;
-      pptx.title = topic;
-      pptx.lang = "pt-BR";
 
       // =====================================
       // COVER
@@ -124,7 +132,7 @@ export class SlidesSkill {
         color: theme.bg,
       };
 
-      cover.addShape(PptxGenJS.ShapeType.rect, {
+      cover.addShape("rect", {
         x: 0,
         y: 0,
         w: 13.33,
@@ -147,36 +155,32 @@ export class SlidesSkill {
         w: 11,
         h: 1,
 
-        fontFace: "Aptos Display",
+        fontFace: "Arial",
         fontSize: 30,
         bold: true,
 
         color: theme.text,
-
-        margin: 0,
       });
 
       cover.addText(
         `STYLE: ${themeName.toUpperCase()}`,
         {
-          x: 0.85,
+          x: 0.8,
           y: 3.2,
 
           w: 4,
           h: 0.3,
 
-          fontFace: "Aptos",
+          fontFace: "Arial",
           fontSize: 12,
           bold: true,
 
           color: theme.primary,
-
-          margin: 0,
         }
       );
 
       // =====================================
-      // SLIDES
+      // CONTENT SLIDES
       // =====================================
 
       sections.forEach((section, index) => {
@@ -202,7 +206,7 @@ export class SlidesSkill {
               w: 10,
               h: 0.7,
 
-              fontFace: "Aptos Display",
+              fontFace: "Arial",
               fontSize: 28,
               bold: true,
 
@@ -210,21 +214,18 @@ export class SlidesSkill {
             }
           );
 
-          slide.addShape(
-            PptxGenJS.ShapeType.line,
-            {
-              x: 0.7,
-              y: 1.55,
+          slide.addShape("line", {
+            x: 0.7,
+            y: 1.5,
 
-              w: 2.5,
-              h: 0,
+            w: 2.5,
+            h: 0,
 
-              line: {
-                color: theme.primary,
-                pt: 2,
-              },
-            }
-          );
+            line: {
+              color: theme.primary,
+              pt: 2,
+            },
+          });
 
           slide.addText(section.content[0], {
             x: 0.8,
@@ -233,7 +234,7 @@ export class SlidesSkill {
             w: 8.5,
             h: 3,
 
-            fontFace: "Aptos",
+            fontFace: "Arial",
             fontSize: 20,
 
             color: theme.muted,
@@ -267,29 +268,12 @@ export class SlidesSkill {
             w: 9.5,
             h: 2,
 
-            fontFace: "Aptos Display",
+            fontFace: "Arial",
             fontSize: 26,
             italic: true,
 
             color: theme.text,
           });
-
-          slide.addText(
-            section.title.toUpperCase(),
-            {
-              x: 1.7,
-              y: 5.3,
-
-              w: 5,
-              h: 0.3,
-
-              fontFace: "Aptos",
-              fontSize: 11,
-              bold: true,
-
-              color: theme.primary,
-            }
-          );
         }
 
         // =====================================
@@ -297,24 +281,21 @@ export class SlidesSkill {
         // =====================================
 
         else if (layout === 2) {
-          slide.addShape(
-            PptxGenJS.ShapeType.rect,
-            {
-              x: 0,
-              y: 0,
+          slide.addShape("rect", {
+            x: 0,
+            y: 0,
 
-              w: 4.5,
-              h: 7.5,
+            w: 4.5,
+            h: 7.5,
 
-              fill: {
-                color: theme.surface,
-              },
+            fill: {
+              color: theme.surface,
+            },
 
-              line: {
-                transparency: 100,
-              },
-            }
-          );
+            line: {
+              transparency: 100,
+            },
+          });
 
           slide.addText(
             section.title.toUpperCase(),
@@ -325,7 +306,7 @@ export class SlidesSkill {
               w: 3.2,
               h: 1,
 
-              fontFace: "Aptos Display",
+              fontFace: "Arial",
               fontSize: 24,
               bold: true,
 
@@ -340,7 +321,7 @@ export class SlidesSkill {
             w: 6.5,
             h: 3,
 
-            fontFace: "Aptos",
+            fontFace: "Arial",
             fontSize: 20,
 
             color: theme.muted,
@@ -359,7 +340,7 @@ export class SlidesSkill {
             w: 8,
             h: 0.5,
 
-            fontFace: "Aptos Display",
+            fontFace: "Arial",
             fontSize: 25,
             bold: true,
 
@@ -374,30 +355,27 @@ export class SlidesSkill {
           bullets.forEach((bullet, i) => {
             const y = 1.4 + i * 1.15;
 
-            slide.addShape(
-              PptxGenJS.ShapeType.roundRect,
-              {
-                x: 0.8,
-                y,
+            slide.addShape("roundRect", {
+              x: 0.8,
+              y,
 
-                w: 11,
-                h: 0.9,
+              w: 11,
+              h: 0.9,
 
-                rectRadius: 0.05,
+              rectRadius: 0.05,
 
-                fill: {
-                  color:
-                    i % 2 === 0
-                      ? theme.surface
-                      : theme.bg,
-                },
+              fill: {
+                color:
+                  i % 2 === 0
+                    ? theme.surface
+                    : theme.bg,
+              },
 
-                line: {
-                  color: theme.primary,
-                  pt: 1,
-                },
-              }
-            );
+              line: {
+                color: theme.primary,
+                pt: 1,
+              },
+            });
 
             slide.addText(bullet.trim(), {
               x: 1.1,
@@ -406,7 +384,7 @@ export class SlidesSkill {
               w: 9.5,
               h: 0.3,
 
-              fontFace: "Aptos",
+              fontFace: "Arial",
               fontSize: 18,
 
               color: theme.text,
@@ -430,7 +408,7 @@ export class SlidesSkill {
 
               align: "center",
 
-              fontFace: "Aptos Display",
+              fontFace: "Arial",
               fontSize: 32,
               bold: true,
 
@@ -438,21 +416,18 @@ export class SlidesSkill {
             }
           );
 
-          slide.addShape(
-            PptxGenJS.ShapeType.line,
-            {
-              x: 4.8,
-              y: 3.2,
+          slide.addShape("line", {
+            x: 4.8,
+            y: 3.2,
 
-              w: 2.5,
-              h: 0,
+            w: 2.5,
+            h: 0,
 
-              line: {
-                color: theme.primary,
-                pt: 2,
-              },
-            }
-          );
+            line: {
+              color: theme.primary,
+              pt: 2,
+            },
+          });
 
           slide.addText(section.content[0], {
             x: 2,
@@ -463,7 +438,7 @@ export class SlidesSkill {
 
             align: "center",
 
-            fontFace: "Aptos",
+            fontFace: "Arial",
             fontSize: 18,
             italic: true,
 
@@ -483,7 +458,7 @@ export class SlidesSkill {
             w: 10,
             h: 2,
 
-            fontFace: "Aptos Display",
+            fontFace: "Arial",
             fontSize: 24,
             bold: true,
 
@@ -495,6 +470,7 @@ export class SlidesSkill {
         }
 
         // FOOTER
+
         slide.addText(
           String(index + 1).padStart(2, "0"),
           {
@@ -504,7 +480,7 @@ export class SlidesSkill {
             w: 0.4,
             h: 0.2,
 
-            fontFace: "Aptos",
+            fontFace: "Arial",
             fontSize: 10,
 
             color: "FFFFFF55",
@@ -515,7 +491,7 @@ export class SlidesSkill {
       });
 
       // =====================================
-      // FINAL
+      // FINAL SLIDE
       // =====================================
 
       const end = pptx.addSlide();
@@ -533,30 +509,15 @@ export class SlidesSkill {
 
         align: "center",
 
-        fontFace: "Aptos Display",
+        fontFace: "Arial",
         fontSize: 36,
         bold: true,
 
         color: theme.text,
       });
 
-      end.addText("JoelBot AI", {
-        x: 1,
-        y: 3.5,
-
-        w: 11,
-        h: 0.3,
-
-        align: "center",
-
-        fontFace: "Aptos",
-        fontSize: 12,
-
-        color: theme.muted,
-      });
-
       // =====================================
-      // SAVE
+      // SAVE FILE
       // =====================================
 
       const fileName = `slides_${Date.now()}.pptx`;
@@ -571,14 +532,12 @@ export class SlidesSkill {
       });
 
       console.log(
-        "PPT EXISTS:",
+        "FILE EXISTS:",
         fs.existsSync(filePath)
       );
 
-      console.log("PPT PATH:", filePath);
-
       // =====================================
-      // SEND TELEGRAM FILE
+      // SEND TELEGRAM
       // =====================================
 
       await ctx.replyWithDocument({
@@ -592,18 +551,14 @@ export class SlidesSkill {
         filePath,
       };
     } catch (error) {
-      console.error(
-        "SLIDES SKILL ERROR:",
-        error
-      );
+      console.error(error);
 
       await ctx.reply(
-        "Erro ao gerar apresentação."
+        "Erro ao gerar slides."
       );
 
       return {
         success: false,
-        error,
       };
     }
   }
