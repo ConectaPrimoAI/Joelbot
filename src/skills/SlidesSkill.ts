@@ -3,39 +3,19 @@ import pptxgen from "pptxgenjs";
 
 const COLORS = {
   bg: "0B1020",
-  surface: "121A2B",
+  surface: "121826",
   primary: "4DA3FF",
   accent: "FF5C7A",
+  gold: "FFC857",
   text: "F5F7FA",
   muted: "B8C1CC",
   line: "283046",
 };
 
-const FONT_TITLE = "Aptos Display";
-const FONT_BODY = "Aptos";
-
-export async function generateCinematicSlides(
-  topic: string,
-  slides: Array<{
-    title: string;
-    content: string[];
-  }>
-) {
+export async function generateSlides(topic: string, sections: any[]) {
   const pptx = new pptxgen();
 
   pptx.layout = "LAYOUT_WIDE";
-
-  pptx.author = "JoelBot AI";
-  pptx.company = "JoelBot";
-  pptx.subject = topic;
-  pptx.title = topic;
-  pptx.lang = "pt-BR";
-
-  pptx.theme = {
-    headFontFace: FONT_TITLE,
-    bodyFontFace: FONT_BODY,
-    lang: "pt-BR",
-  };
 
   // =========================================
   // COVER
@@ -57,174 +37,278 @@ export async function generateCinematicSlides(
       transparency: 10,
     },
     line: {
-      color: "000000",
       transparency: 100,
     },
   });
 
   cover.addText(topic.toUpperCase(), {
     x: 0.8,
-    y: 2,
+    y: 2.1,
     w: 11,
     h: 1,
-    fontFace: FONT_TITLE,
+    fontFace: "Aptos Display",
     fontSize: 30,
     bold: true,
     color: COLORS.text,
     margin: 0,
   });
 
-  cover.addText("APRESENTAÇÃO CINEMATOGRÁFICA", {
-    x: 0.85,
+  cover.addText("JOELBOT CINEMATIC ENGINE", {
+    x: 0.9,
     y: 3.2,
-    w: 5,
+    w: 4,
     h: 0.3,
-    fontFace: FONT_BODY,
+    fontFace: "Aptos",
     fontSize: 11,
-    bold: true,
     color: COLORS.primary,
-    charSpace: 1.2,
+    bold: true,
     margin: 0,
   });
 
   // =========================================
-  // CONTENT SLIDES
+  // DYNAMIC SLIDES
   // =========================================
 
-  slides.forEach((item, index) => {
+  sections.forEach((section, index) => {
     const slide = pptx.addSlide();
 
     slide.background = {
       color: COLORS.bg,
     };
 
-    // top line
-    slide.addShape(pptx.ShapeType.rect, {
-      x: 0,
-      y: 0,
-      w: 13.33,
-      h: 0.07,
-      fill: {
-        color: COLORS.primary,
-      },
-      line: {
-        color: COLORS.primary,
-        transparency: 100,
-      },
-    });
+    const layoutType = index % 5;
 
-    // title
-    slide.addText(item.title.toUpperCase(), {
-      x: 0.7,
-      y: 0.45,
-      w: 9,
-      h: 0.6,
-      fontFace: FONT_TITLE,
-      fontSize: 26,
-      bold: true,
-      color: COLORS.text,
-      margin: 0,
-    });
+    switch (layoutType) {
+      // =====================================
+      // LAYOUT 1 — BIG TITLE + EDITORIAL
+      // =====================================
+
+      case 0:
+        slide.addText(section.title.toUpperCase(), {
+          x: 0.7,
+          y: 0.8,
+          w: 10,
+          h: 0.8,
+          fontFace: "Aptos Display",
+          fontSize: 28,
+          bold: true,
+          color: COLORS.text,
+          margin: 0,
+        });
+
+        slide.addShape(pptx.ShapeType.rect, {
+          x: 0.7,
+          y: 1.6,
+          w: 1.8,
+          h: 0.05,
+          fill: {
+            color: COLORS.accent,
+          },
+          line: {
+            transparency: 100,
+          },
+        });
+
+        slide.addText(section.content.join(" "), {
+          x: 0.8,
+          y: 2,
+          w: 8.5,
+          h: 3,
+          fontFace: "Aptos",
+          fontSize: 20,
+          color: COLORS.muted,
+          breakLine: true,
+        });
+
+        break;
+
+      // =====================================
+      // LAYOUT 2 — PREMIUM CARDS
+      // =====================================
+
+      case 1:
+        slide.addText(section.title, {
+          x: 0.7,
+          y: 0.5,
+          w: 7,
+          h: 0.5,
+          fontFace: "Aptos Display",
+          fontSize: 24,
+          bold: true,
+          color: COLORS.text,
+        });
+
+        section.content.slice(0, 4).forEach((item: string, idx: number) => {
+          const y = 1.4 + idx * 1.2;
+
+          slide.addShape(pptx.ShapeType.roundRect, {
+            x: 0.8,
+            y,
+            w: 11,
+            h: 0.9,
+            rectRadius: 0.05,
+            fill: {
+              color: idx % 2 === 0
+                ? "151F34"
+                : "101827",
+            },
+            line: {
+              color: "24324A",
+              pt: 1,
+            },
+          });
+
+          slide.addText(item, {
+            x: 1.1,
+            y: y + 0.2,
+            w: 9.5,
+            h: 0.4,
+            fontFace: "Aptos",
+            fontSize: 18,
+            color: COLORS.text,
+          });
+        });
+
+        break;
+
+      // =====================================
+      // LAYOUT 3 — HUGE QUOTE
+      // =====================================
+
+      case 2:
+        slide.addText("“", {
+          x: 0.8,
+          y: 1.2,
+          w: 1,
+          h: 1,
+          fontSize: 70,
+          color: COLORS.accent,
+          bold: true,
+        });
+
+        slide.addText(section.content.join(" "), {
+          x: 1.5,
+          y: 2,
+          w: 9.5,
+          h: 2,
+          fontFace: "Aptos Display",
+          fontSize: 26,
+          italic: true,
+          color: COLORS.text,
+        });
+
+        slide.addText(section.title.toUpperCase(), {
+          x: 1.5,
+          y: 5.3,
+          w: 4,
+          h: 0.3,
+          fontFace: "Aptos",
+          fontSize: 12,
+          color: COLORS.primary,
+          bold: true,
+        });
+
+        break;
+
+      // =====================================
+      // LAYOUT 4 — SPLIT SCREEN
+      // =====================================
+
+      case 3:
+        slide.addShape(pptx.ShapeType.rect, {
+          x: 0,
+          y: 0,
+          w: 4.8,
+          h: 7.5,
+          fill: {
+            color: "111827",
+          },
+          line: {
+            transparency: 100,
+          },
+        });
+
+        slide.addText(section.title.toUpperCase(), {
+          x: 0.6,
+          y: 1.3,
+          w: 3.5,
+          h: 1,
+          fontFace: "Aptos Display",
+          fontSize: 26,
+          bold: true,
+          color: COLORS.text,
+        });
+
+        slide.addText(section.content.join(" "), {
+          x: 5.4,
+          y: 1.8,
+          w: 6.5,
+          h: 3,
+          fontFace: "Aptos",
+          fontSize: 20,
+          color: COLORS.muted,
+        });
+
+        break;
+
+      // =====================================
+      // LAYOUT 5 — CINEMATIC MINIMAL
+      // =====================================
+
+      case 4:
+        slide.addText(section.title.toUpperCase(), {
+          x: 0.9,
+          y: 2.2,
+          w: 10,
+          h: 0.8,
+          align: "center",
+          fontFace: "Aptos Display",
+          fontSize: 30,
+          bold: true,
+          color: COLORS.text,
+        });
+
+        slide.addShape(pptx.ShapeType.line, {
+          x: 4.6,
+          y: 3.3,
+          w: 3,
+          h: 0,
+          line: {
+            color: COLORS.primary,
+            pt: 1.5,
+          },
+        });
+
+        slide.addText(section.content[0] || "", {
+          x: 2,
+          y: 3.7,
+          w: 9,
+          h: 1,
+          align: "center",
+          fontFace: "Aptos",
+          fontSize: 18,
+          italic: true,
+          color: COLORS.muted,
+        });
+
+        break;
+    }
 
     // slide number
     slide.addText(String(index + 1).padStart(2, "0"), {
-      x: 11.3,
-      y: 0.35,
-      w: 1,
-      h: 0.5,
-      fontFace: FONT_TITLE,
-      fontSize: 24,
-      bold: true,
-      color: "FFFFFF22",
-      align: "right",
-      margin: 0,
-    });
-
-    // separator
-    slide.addShape(pptx.ShapeType.line, {
-      x: 0.7,
-      y: 1.1,
-      w: 11,
-      h: 0,
-      line: {
-        color: COLORS.line,
-        pt: 1,
-      },
-    });
-
-    // cards
-    item.content.slice(0, 4).forEach((text, idx) => {
-      const y = 1.5 + idx * 1.15;
-
-      slide.addShape(pptx.ShapeType.roundRect, {
-        x: 0.8,
-        y,
-        w: 11,
-        h: 0.95,
-        rectRadius: 0.05,
-        fill: {
-          color: idx % 2 === 0 ? "151F34" : "101827",
-        },
-        line: {
-          color: "24324A",
-          pt: 1,
-        },
-        shadow: {
-          type: "outer",
-          color: "000000",
-          blur: 2,
-          angle: 45,
-          distance: 1,
-          opacity: 0.15,
-        },
-      });
-
-      slide.addShape(pptx.ShapeType.ellipse, {
-        x: 1,
-        y: y + 0.28,
-        w: 0.14,
-        h: 0.14,
-        fill: {
-          color: idx % 2 === 0
-            ? COLORS.primary
-            : COLORS.accent,
-        },
-        line: {
-          color: "FFFFFF",
-          transparency: 100,
-        },
-      });
-
-      slide.addText(text, {
-        x: 1.3,
-        y: y + 0.18,
-        w: 9.8,
-        h: 0.4,
-        fontFace: FONT_BODY,
-        fontSize: 18,
-        color: COLORS.text,
-        margin: 0,
-        breakLine: false,
-      });
-    });
-
-    // branding
-    slide.addText("JOELBOT AI", {
-      x: 10.8,
-      y: 6.9,
-      w: 1.3,
+      x: 11.5,
+      y: 6.8,
+      w: 0.5,
       h: 0.2,
-      align: "right",
-      fontFace: FONT_BODY,
-      fontSize: 9,
-      bold: true,
+      fontFace: "Aptos",
+      fontSize: 10,
       color: "FFFFFF55",
-      margin: 0,
+      align: "right",
     });
   });
 
   // =========================================
-  // FINAL SLIDE
+  // FINAL
   // =========================================
 
   const end = pptx.addSlide();
@@ -233,36 +317,30 @@ export async function generateCinematicSlides(
     color: COLORS.bg,
   };
 
-  end.addText("OBRIGADO.", {
+  end.addText("FIM.", {
     x: 1,
-    y: 2.5,
+    y: 2.6,
     w: 11,
     h: 0.8,
     align: "center",
-    fontFace: FONT_TITLE,
-    fontSize: 34,
+    fontFace: "Aptos Display",
+    fontSize: 36,
     bold: true,
     color: COLORS.text,
-    margin: 0,
   });
 
-  end.addText("JoelBot AI Presentation Engine", {
+  end.addText("JoelBot AI", {
     x: 1,
     y: 3.5,
     w: 11,
     h: 0.3,
     align: "center",
-    fontFace: FONT_BODY,
+    fontFace: "Aptos",
     fontSize: 12,
     color: COLORS.muted,
-    margin: 0,
   });
 
-  // =========================================
-  // SAVE
-  // =========================================
-
-  const fileName = `presentation_${Date.now()}.pptx`;
+  const fileName = `slides_${Date.now()}.pptx`;
 
   await pptx.writeFile({
     fileName,
