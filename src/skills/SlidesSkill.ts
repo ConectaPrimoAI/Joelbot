@@ -4,27 +4,27 @@ import path from "path";
 import { Context } from "telegraf";
 
 // ==========================================
-// CONFIGURAÇÕES GRANULARES ENVIADAS PELA IA
+// INTERFACE DE COMANDO PURA DA IARA
 // ==========================================
 interface VisualElement {
   type: "text" | "shape" | "image" | "line";
-  x: number;          // Posição horizontal na tela (em polegadas)
-  y: number;          // Posição vertical na tela (em polegadas)
-  w: number;          // Largura do elemento (em polegadas)
-  h: number;          // Altura do elemento (em polegadas)
-  content?: string;   // O texto a ser escrito ou a URL/Caminho da imagem
-  fontSize?: number;  // Tamanho da fonte definido pela IA
-  fontFace?: string;  // Nome da fonte (Ex: Arial, Impact, Georgia, Comic Sans)
-  color?: string;     // Cor do texto em formato HEX (Ex: "FFFFFF")
-  fill?: string;      // Cor de preenchimento da forma em formato HEX
+  x: number | string; // Aceita número (ex: 1.5) ou porcentagem (ex: "10%")
+  y: number | string;
+  w: number | string;
+  h: number | string;
+  content?: string;   // Texto ou URL/Caminho da imagem
+  fontSize?: number;
+  fontFace?: string;
+  color?: string;     // HEX (ex: "FF0000")
+  fill?: string;      // HEX de preenchimento para formas
   align?: "left" | "center" | "right";
   bold?: boolean;
   italic?: boolean;
-  shapeType?: string; // Tipo da forma (Ex: "rect", "ellipse", "triangle")
+  shapeType?: string; // Ex: "rect", "ellipse", "triangle"
 }
 
 interface DynamicSlide {
-  background: string; // Cor de fundo do slide em HEX definida pela IA
+  background: string; // Cor de fundo em HEX enviada pela Iara
   elements: VisualElement[];
 }
 
@@ -35,7 +35,7 @@ interface IaraPresentationPayload {
 
 export class SlidesSkill {
   name = "slides";
-  description = "Renderizador Universal de Slides - Cria a apresentação do zero conforme o design da IA";
+  description = "Renderizador Universal de Slides - Executa o design livre criado pela IA";
 
   canHandle(input: string): boolean {
     const text = input.toLowerCase();
@@ -51,77 +51,91 @@ export class SlidesSkill {
   }
 
   // ==========================================
-  // MOTOR DE RENDERIZAÇÃO EM BRANCO
+  // MOTOR DE RENDERIZAÇÃO ULTRA-ROBUSTO
   // ==========================================
   async execute(params: string, ctx: Context): Promise<any> {
     try {
-      // Limpa possíveis marcações de blocos de código que a IA possa enviar na string
+      // Limpa possíveis blocos de marcação de código markdown que a IA possa enviar por engano
       const cleanParams = params.replace(/```json/g, "").replace(/```/g, "").trim();
       const designDoc = JSON.parse(cleanParams) as IaraPresentationPayload;
 
-      // Inicializa o PowerPoint em branco no formato Widescreen (16:9)
       const PptxConstructor = pptxgen as any;
       const pptx = new PptxConstructor();
-      pptx.layout = "LAYOUT_WIDE";
+      pptx.layout = "LAYOUT_WIDE"; // Padrão widescreen 16:9
 
-      // Percorre os slides gerados pela IA
+      // Varre os slides criados livremente pela Iara
       designDoc.slides.forEach((slideData) => {
         const slide = pptx.addSlide();
         
-        // Aplica a cor de fundo que a IA escolheu para este slide
+        // Aplica o fundo definido pela IA
         if (slideData.background) {
-          slide.background = { color: slideData.background.replace("#", "") };
+          const cleanBg = slideData.background.replace("#", "").trim();
+          slide.background = { color: cleanBg };
         }
 
-        // Desenha individualmente cada elemento posicionado pela IA
-        slideData.elements.forEach((el) => {
-          const elX = el.x;
-          const elY = el.y;
-          const elW = el.w;
-          const elH = el.h;
+        // Desenha os elementos nas posições exatas comandadas pela IA
+        if (Array.isArray(slideData.elements)) {
+          slideData.elements.forEach((el) => {
+            
+            // Força a limpeza das cores removendo a hashtag se a IA enviar
+            const textColor = el.color ? el.color.replace("#", "").trim() : "000000";
+            const fillColor = el.fill ? el.fill.replace("#", "").trim() : "CCCCCC";
 
-          // 1. Renderização de Texto Próprio
-          if (el.type === "text") {
-            slide.addText(this.cleanText(el.content), {
-              x: elX, y: elY, w: elW, h: elH,
-              fontSize: el.fontSize || 14,
-              fontFace: el.fontFace || "Arial",
-              color: el.color ? el.color.replace("#", "") : "000000",
-              align: el.align || "left",
-              bold: el.bold || false,
-              italic: el.italic || false,
-              valign: "top"
-            });
-          } 
-          
-          // 2. Renderização de Formas Geométricas Customizadas
-          else if (el.type === "shape") {
-            slide.addShape((el.shapeType as any) || "rect", {
-              x: elX, y: elY, w: elW, h: elH,
-              fill: { color: el.fill ? el.fill.replace("#", "") : "CCCCCC" },
-              line: { transparency: 100 }
-            });
-          }
+            // 1. TEXTO PURE DESIGN
+            if (el.type === "text") {
+              slide.addText(this.cleanText(el.content), {
+                x: el.x,
+                y: el.y,
+                w: el.w,
+                h: el.h,
+                fontSize: Number(el.fontSize) || 14,
+                fontFace: el.fontFace || "Arial",
+                color: textColor,
+                align: el.align || "left",
+                bold: !!el.bold,
+                italic: !!el.italic,
+                valign: "top"
+              });
+            } 
+            
+            // 2. FORMAS GEOMÉTRICAS
+            else if (el.type === "shape") {
+              slide.addShape((el.shapeType as any) || "rect", {
+                x: el.x,
+                y: el.y,
+                w: el.w,
+                h: el.h,
+                fill: { color: fillColor },
+                line: { transparency: 100 }
+              });
+            }
 
-          // 3. Renderização de Imagens Dinâmicas
-          else if (el.type === "image" && el.content) {
-            slide.addImage({
-              path: el.content,
-              x: elX, y: elY, w: elW, h: elH
-            });
-          }
+            // 3. IMAGENS DINÂMICAS
+            else if (el.type === "image" && el.content) {
+              slide.addImage({
+                path: el.content,
+                x: el.x,
+                y: el.y,
+                w: el.w,
+                h: el.h
+              });
+            }
 
-          // 4. Renderização de Linhas de Separação Estilizadas
-          else if (el.type === "line") {
-            slide.addShape("line", {
-              x: elX, y: elY, w: elW, h: elH,
-              line: { color: el.color ? el.color.replace("#", "") : "000000", pt: 2 }
-            });
-          }
-        });
+            // 4. LINHAS VECTORIAIS
+            else if (el.type === "line") {
+              slide.addShape("line", {
+                x: el.x,
+                y: el.y,
+                w: el.w,
+                h: el.h,
+                line: { color: textColor, pt: 2 }
+              });
+            }
+          });
+        }
       });
 
-      // Salva o arquivo gerado
+      // Processo de Salvamento e Envio
       const fileName = `apresentacao_${Date.now()}.pptx`;
       const filePath = path.join(process.cwd(), fileName);
 
@@ -133,15 +147,15 @@ export class SlidesSkill {
           filename: fileName,
         });
         fs.unlinkSync(filePath);
-        return { success: true, text: "Apresentação renderizada a partir do design customizado da IA." };
+        return { success: true, text: "Apresentação renderizada com sucesso." };
       } else {
-        throw new Error("Erro na gravação física do arquivo PPTX.");
+        throw new Error("Erro físico de escrita do arquivo PPTX.");
       }
 
     } catch (error) {
-      console.error("Erro no motor de renderização puro:", error);
-      await ctx.reply("Houve um problema de sintaxe ao desenhar os elementos deste slide.");
-      return { success: false, text: "Erro ao processar estrutura visual." };
+      console.error("Erro Crítico de Renderização Nativa:", error);
+      await ctx.reply("Erro ao processar a estrutura visual. Verifique os parâmetros geométricos enviados pela Iara.");
+      return { success: false, text: "Falha catastrófica de desenho." };
     }
   }
 }
