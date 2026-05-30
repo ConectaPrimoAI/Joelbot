@@ -4,27 +4,27 @@ import path from "path";
 import { Context } from "telegraf";
 
 // ==========================================
-// INTERFACE DE COMANDO PURA DA IARA
+// INTERFACES DE DESIGN ABSOLUTO DA IA
 // ==========================================
 interface VisualElement {
   type: "text" | "shape" | "image" | "line";
-  x: number | string; // Aceita número (ex: 1.5) ou porcentagem (ex: "10%")
+  x: number | string; 
   y: number | string;
   w: number | string;
   h: number | string;
-  content?: string;   // Texto ou URL/Caminho da imagem
-  fontSize?: number;
+  content?: string;   
+  fontSize?: number | string;
   fontFace?: string;
-  color?: string;     // HEX (ex: "FF0000")
-  fill?: string;      // HEX de preenchimento para formas
+  color?: string;     
+  fill?: string;      
   align?: "left" | "center" | "right";
   bold?: boolean;
   italic?: boolean;
-  shapeType?: string; // Ex: "rect", "ellipse", "triangle"
+  shapeType?: string; 
 }
 
 interface DynamicSlide {
-  background: string; // Cor de fundo em HEX enviada pela Iara
+  background: string; 
   elements: VisualElement[];
 }
 
@@ -35,7 +35,7 @@ interface IaraPresentationPayload {
 
 export class SlidesSkill {
   name = "slides";
-  description = "Renderizador Universal de Slides - Executa o design livre criado pela IA";
+  description = "Renderizador à Prova de Falhas de Layouts Gerados pela IA do Absoluto Zero";
 
   canHandle(input: string): boolean {
     const text = input.toLowerCase();
@@ -50,45 +50,67 @@ export class SlidesSkill {
       .trim();
   }
 
+  /**
+   * RECURSO DE BLINDAGEM: Garante que os parâmetros geométricos sejam válidos e aceitos nativamente
+   */
+  private parseCoordinate(val: number | string, defaultValue: number, maxLimit: number): number | string {
+    if (typeof val === "string") {
+      if (val.includes("%")) {
+        return val.trim(); // Se a Iara usar porcentagem nativa (ex: "50%"), passa direto
+      }
+      const parsed = parseFloat(val);
+      if (isNaN(parsed)) return defaultValue;
+      return parsed > maxLimit ? maxLimit : parsed;
+    }
+    if (typeof val === "number") {
+      if (isNaN(val)) return defaultValue;
+      return val > maxLimit ? maxLimit : val;
+    }
+    return defaultValue;
+  }
+
   // ==========================================
-  // MOTOR DE RENDERIZAÇÃO ULTRA-ROBUSTO
+  // MOTOR DE RENDERIZAÇÃO BLINDADO
   // ==========================================
   async execute(params: string, ctx: Context): Promise<any> {
     try {
-      // Limpa possíveis blocos de marcação de código markdown que a IA possa enviar por engano
       const cleanParams = params.replace(/```json/g, "").replace(/```/g, "").trim();
       const designDoc = JSON.parse(cleanParams) as IaraPresentationPayload;
 
       const PptxConstructor = pptxgen as any;
       const pptx = new PptxConstructor();
-      pptx.layout = "LAYOUT_WIDE"; // Padrão widescreen 16:9
+      pptx.layout = "LAYOUT_WIDE"; // 16:9 Widescreen (13.33 x 7.5 polegadas)
 
-      // Varre os slides criados livremente pela Iara
+      if (!designDoc.slides || !Array.isArray(designDoc.slides)) {
+        throw new Error("Payload de apresentação inválido ou sem array de slides.");
+      }
+
       designDoc.slides.forEach((slideData) => {
         const slide = pptx.addSlide();
         
-        // Aplica o fundo definido pela IA
         if (slideData.background) {
           const cleanBg = slideData.background.replace("#", "").trim();
           slide.background = { color: cleanBg };
         }
 
-        // Desenha os elementos nas posições exatas comandadas pela IA
         if (Array.isArray(slideData.elements)) {
           slideData.elements.forEach((el) => {
             
-            // Força a limpeza das cores removendo a hashtag se a IA enviar
+            // Tratamento e blindagem de coordenadas geométricas individuais contra erros de parsing
+            const elX = this.parseCoordinate(el.x, 0.5, 13.33);
+            const elY = this.parseCoordinate(el.y, 0.5, 7.5);
+            const elW = this.parseCoordinate(el.w, 3.0, 13.33);
+            const elH = this.parseCoordinate(el.h, 1.0, 7.5);
+
             const textColor = el.color ? el.color.replace("#", "").trim() : "000000";
             const fillColor = el.fill ? el.fill.replace("#", "").trim() : "CCCCCC";
+            const fSize = el.fontSize ? Math.max(6, Math.min(140, Number(el.fontSize))) : 14;
 
-            // 1. TEXTO PURE DESIGN
+            // 1. TEXTO DESENHADO LIVREMENTE
             if (el.type === "text") {
               slide.addText(this.cleanText(el.content), {
-                x: el.x,
-                y: el.y,
-                w: el.w,
-                h: el.h,
-                fontSize: Number(el.fontSize) || 14,
+                x: elX, y: elY, w: elW, h: elH,
+                fontSize: fSize,
                 fontFace: el.fontFace || "Arial",
                 color: textColor,
                 align: el.align || "left",
@@ -98,36 +120,31 @@ export class SlidesSkill {
               });
             } 
             
-            // 2. FORMAS GEOMÉTRICAS
+            // 2. FORMAS GEOMÉTRICAS DO ZERO
             else if (el.type === "shape") {
               slide.addShape((el.shapeType as any) || "rect", {
-                x: el.x,
-                y: el.y,
-                w: el.w,
-                h: el.h,
+                x: elX, y: elY, w: elW, h: elH,
                 fill: { color: fillColor },
                 line: { transparency: 100 }
               });
             }
 
-            // 3. IMAGENS DINÂMICAS
+            // 3. IMAGENS OU ÍCONES DO CONTEXTO
             else if (el.type === "image" && el.content) {
-              slide.addImage({
-                path: el.content,
-                x: el.x,
-                y: el.y,
-                w: el.w,
-                h: el.h
-              });
+              try {
+                slide.addImage({
+                  path: el.content,
+                  x: elX, y: elY, w: elW, h: elH
+                });
+              } catch (imgErr) {
+                console.error("Link de imagem inválido enviado pela Iara:", imgErr);
+              }
             }
 
-            // 4. LINHAS VECTORIAIS
+            // 4. LINHAS DE DIVISÃO ARTÍSTICAS
             else if (el.type === "line") {
               slide.addShape("line", {
-                x: el.x,
-                y: el.y,
-                w: el.w,
-                h: el.h,
+                x: elX, y: elY, w: elW, h: elH,
                 line: { color: textColor, pt: 2 }
               });
             }
@@ -135,7 +152,6 @@ export class SlidesSkill {
         }
       });
 
-      // Processo de Salvamento e Envio
       const fileName = `apresentacao_${Date.now()}.pptx`;
       const filePath = path.join(process.cwd(), fileName);
 
@@ -149,13 +165,13 @@ export class SlidesSkill {
         fs.unlinkSync(filePath);
         return { success: true, text: "Apresentação renderizada com sucesso." };
       } else {
-        throw new Error("Erro físico de escrita do arquivo PPTX.");
+        throw new Error("Erro de escrita do arquivo PPTX.");
       }
 
     } catch (error) {
-      console.error("Erro Crítico de Renderização Nativa:", error);
-      await ctx.reply("Erro ao processar a estrutura visual. Verifique os parâmetros geométricos enviados pela Iara.");
-      return { success: false, text: "Falha catastrófica de desenho." };
+      console.error("Erro Crítico de Renderização:", error);
+      await ctx.reply("Houve uma falha crítica ao processar os dados do JSON. Verifique a formatação.");
+      return { success: false, text: "Falha de desenho." };
     }
   }
 }
