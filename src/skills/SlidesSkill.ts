@@ -1,6 +1,9 @@
 import { Context } from "telegraf";
-// pptxgenjs funciona corretamente com require mesmo em projetos ESM/TypeScript
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+import { createRequire } from "module";
+
+// pptxgenjs não tem export ESM estável; createRequire é a solução correta
+// para projetos com "type": "module" no package.json
+const require = createRequire(import.meta.url);
 const PptxGenJS = require("pptxgenjs");
 
 // ==========================================
