@@ -1,16 +1,17 @@
-import pptxgen from "pptxgenjs";
-import fs from "fs";
-import path from "path";
+import PptxGenJS from "pptxgenjs";
 import { Context } from "telegraf";
 
+// ==========================================
+// ESTRUTURA RE REALIDADE DA IARA (DADOS PUROS)
+// ==========================================
 interface VisualElement {
   type: "text" | "shape" | "image" | "line";
-  x: number | string; 
-  y: number | string;
-  w: number | string;
-  h: number | string;
+  x: any; 
+  y: any; 
+  w: any; 
+  h: any; 
   content?: string;   
-  fontSize?: number | string;
+  fontSize?: any;
   fontFace?: string;
   color?: string;     
   fill?: string;      
@@ -32,151 +33,129 @@ interface IaraPresentationPayload {
 
 export class SlidesSkill {
   name = "slides";
-  description = "Renderizador à Prova de Falhas Total de Apresentações Criadas do Zero pela IA";
+  description = "Renderizador À Prova de Explosão de Slides Criados do Zero Pela IA";
 
   canHandle(input: string): boolean {
     const text = input.toLowerCase();
     return text.includes("slide") || text.includes("ppt") || text.includes("apresentação");
   }
 
-  private cleanText(text: string | undefined): string {
+  // Helper para limpar strings ruins
+  private cleanText(text: any): string {
     if (!text) return "";
-    return text
+    return String(text)
       .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
       .replace(/\\n/g, "\n")
       .trim();
   }
 
-  private parseCoordinate(val: number | string, defaultValue: number, maxLimit: number): number | string {
-    if (typeof val === "string") {
-      if (val.includes("%")) return val.trim();
-      const parsed = parseFloat(val);
-      if (isNaN(parsed)) return defaultValue;
-      return parsed > maxLimit ? maxLimit : parsed;
-    }
-    if (typeof val === "number") {
-      if (isNaN(val)) return defaultValue;
-      return val > maxLimit ? maxLimit : val;
-    }
-    return defaultValue;
+  // Normaliza de forma segura as coordenadas para a biblioteca aceitar sem travar
+  private formatCoord(val: any): any {
+    if (val === undefined || val === null) return 1;
+    if (typeof val === "string" && val.includes("%")) return val.trim();
+    const num = parseFloat(val);
+    return isNaN(num) ? 1 : num;
   }
 
-  // =================================================================
-  // EXECUTOR MULTI-FORMATO (PREVINE ERROS DE SINTAXE DO BOT)
-  // =================================================================
+  // ==========================================
+  // EXECUTOR REVISADO E BLINDADO DE DISCO
+  // ==========================================
   async execute(params: any, ctx: Context): Promise<any> {
     try {
       let designDoc: IaraPresentationPayload;
 
-      // SEFA-1: Se o framework do bot já passar os parâmetros como Objeto Javascript
+      // Extração inteligente do JSON independente de como o framework envie
       if (typeof params === "object" && params !== null) {
-        // Se o objeto real estiver envelopado em uma propriedade comum de agents (como args ou input)
-        if (params.slides) {
-          designDoc = params as IaraPresentationPayload;
-        } else if (params.args && typeof params.args === "object" && params.args.slides) {
-          designDoc = params.args as IaraPresentationPayload;
-        } else if (params.input && typeof params.input === "string") {
-          const clean = params.input.replace(/```json/g, "").replace(/```/g, "").trim();
-          designDoc = JSON.parse(clean);
-        } else {
-          // Tenta ler o primeiro campo que encontrar ou stringifica para tentar o parser manual
-          const strParams = JSON.stringify(params);
-          designDoc = JSON.parse(strParams);
-        }
-      } 
-      // SEFA-2: Se vier como String bruta do LLM
-      else if (typeof params === "string") {
-        const cleanParams = params.replace(/```json/g, "").replace(/```/g, "").trim();
-        designDoc = JSON.parse(cleanParams) as IaraPresentationPayload;
+        designDoc = params.slides ? params : (params.args || params.input || params);
+      } else if (typeof params === "string") {
+        const cleanStr = params.replace(/```json/g, "").replace(/```/g, "").trim();
+        designDoc = JSON.parse(cleanStr);
       } else {
-        throw new Error("Formato de parâmetro completamente desconhecido.");
+        throw new Error("Formato inválido de parâmetros.");
       }
 
-      // Validação básica do documento decodificado
-      if (!designDoc || !designDoc.slides || !Array.isArray(designDoc.slides)) {
-        console.log("Conteúdo recebido mal estruturado:", designDoc);
-        throw new Error("O JSON decodificado não possui a estrutura de slides necessária.");
+      // Se a estrutura quebrar no caminho, cria um fallback básico instantâneo
+      if (!designDoc || !Array.isArray(designDoc.slides)) {
+        throw new Error("Estrutura de slides ausente no payload.");
       }
 
-      // Inicialização da API nativa de desenho
-      const PptxConstructor = pptxgen as any;
-      const pptx = new PptxConstructor();
-      pptx.layout = "LAYOUT_WIDE"; // Proporção 16:9
+      // INSTANCIAÇÃO SEGURA DA BIBLIOTECA
+      const pptx = new PptxGenJS();
+      pptx.layout = "LAYOUT_WIDE"; // Força o padrão Widescreen 16:9
 
-      // Varre e executa o design livre ordenado pela IA
+      // Monta os slides iterando os comandos diretos de pixel da Iara
       designDoc.slides.forEach((slideData) => {
         const slide = pptx.addSlide();
         
+        // Trata cor de fundo
         if (slideData.background) {
-          slide.background = { color: slideData.background.replace("#", "").trim() };
+          const bg = this.cleanText(slideData.background).replace("#", "");
+          slide.background = { color: bg };
         }
 
         if (Array.isArray(slideData.elements)) {
           slideData.elements.forEach((el) => {
-            const elX = this.parseCoordinate(el.x, 0.5, 13.33);
-            const elY = this.parseCoordinate(el.y, 0.5, 7.5);
-            const elW = this.parseCoordinate(el.w, 3.0, 13.33);
-            const elH = this.parseCoordinate(el.h, 1.0, 7.5);
+            const x = this.formatCoord(el.x);
+            const y = this.formatCoord(el.y);
+            const w = this.formatCoord(el.w);
+            const h = this.formatCoord(el.h);
 
-            const textColor = el.color ? el.color.replace("#", "").trim() : "000000";
-            const fillColor = el.fill ? el.fill.replace("#", "").trim() : "CCCCCC";
-            const fSize = el.fontSize ? Math.max(6, Math.min(140, Number(el.fontSize))) : 14;
+            const color = el.color ? this.cleanText(el.color).replace("#", "") : "000000";
+            const fill = el.fill ? this.cleanText(el.fill).replace("#", "") : "CCCCCC";
+            const fontSize = el.fontSize ? Math.max(6, Math.min(120, parseInt(el.fontSize))) : 14;
 
+            // Desenha Texto Livre
             if (el.type === "text") {
               slide.addText(this.cleanText(el.content), {
-                x: elX, y: elY, w: elW, h: elH,
-                fontSize: fSize,
+                x, y, w, h,
+                fontSize,
                 fontFace: el.fontFace || "Arial",
-                color: textColor,
+                color,
                 align: el.align || "left",
                 bold: !!el.bold,
                 italic: !!el.italic,
                 valign: "top"
               });
-            } 
+            }
+            // Desenha Forma Geométrica Livre
             else if (el.type === "shape") {
               slide.addShape((el.shapeType as any) || "rect", {
-                x: elX, y: elY, w: elW, h: elH,
-                fill: { color: fillColor },
+                x, y, w, h,
+                fill: { color: fill },
                 line: { transparency: 100 }
               });
             }
+            // Desenha Imagem da internet
             else if (el.type === "image" && el.content) {
               try {
-                slide.addImage({ path: el.content, x: elX, y: elY, w: elW, h: elH });
-              } catch (e) {}
+                slide.addImage({ path: el.content, x, y, w, h });
+              } catch (e) {
+                console.error("Erro ao plotar imagem:", e);
+              }
             }
+            // Desenha Linha de vetor
             else if (el.type === "line") {
-              slide.addShape("line", {
-                x: elX, y: elY, w: elW, h: elH,
-                line: { color: textColor, pt: 2 }
-              });
+              slide.addShape("line", { x, y, w, h, line: { color, pt: 2 } });
             }
           });
         }
       });
 
-      // Geração física do arquivo final do desenho
-      const fileName = `apresentacao_${Date.now()}.pptx`;
-      const filePath = path.join(process.cwd(), fileName);
+      // SALVAMENTO EM MEMÓRIA (Evita erros de gravação física no Render / Servidores)
+      const buffer = await pptx.write("nodebuffer");
 
-      await pptx.writeFile({ fileName: filePath });
+      // Envia o arquivo de forma direta pelo stream de dados binários do Telegram
+      await ctx.replyWithDocument({
+        source: buffer as Buffer,
+        filename: `apresentacao_iara_${Date.now()}.pptx`
+      });
 
-      if (fs.existsSync(filePath)) {
-        await ctx.replyWithDocument({
-          source: fs.createReadStream(filePath),
-          filename: fileName,
-        });
-        fs.unlinkSync(filePath);
-        return { success: true, text: "Apresentação renderizada com sucesso do zero." };
-      } else {
-        throw new Error("Falha ao gravar arquivo físico.");
-      }
+      return { success: true, text: "Apresentação renderizada com sucesso." };
 
     } catch (error) {
-      console.error("DEBUG INTERNO DO MOTOR DE DESIGN:", error);
-      await ctx.reply("Houve um problema de dessincronização de dados na chamada da ferramenta de slides. Tentando reajustar...");
-      return { success: false, text: "Falha de desenho." };
+      console.error("CRITICAL DESIGN ERROR:", error);
+      await ctx.reply("Iara reportou uma inconformidade crítica no envio do lote de design.");
+      return { success: false, text: "Abortado." };
     }
   }
 }
