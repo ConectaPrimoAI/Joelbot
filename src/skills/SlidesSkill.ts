@@ -1,8 +1,9 @@
-import PptxGenJS from "pptxgenjs";
 import { Context } from "telegraf";
+// Importação compatível com o compilador TypeScript da biblioteca pptxgenjs
+const PptxGenJS = require("pptxgenjs");
 
 // ==========================================
-// ESTRUTURA RE REALIDADE DA IARA (DADOS PUROS)
+// ESTRUTURA DE REALIDADE DA IARA (DADOS PUROS)
 // ==========================================
 interface VisualElement {
   type: "text" | "shape" | "image" | "line";
@@ -33,14 +34,14 @@ interface IaraPresentationPayload {
 
 export class SlidesSkill {
   name = "slides";
-  description = "Renderizador À Prova de Explosão de Slides Criados do Zero Pela IA";
+  description = "Renderizador À Prova de Falhas de Slides Criados do Zero Pela IA";
 
   canHandle(input: string): boolean {
     const text = input.toLowerCase();
     return text.includes("slide") || text.includes("ppt") || text.includes("apresentação");
   }
 
-  // Helper para limpar strings ruins
+  // Helper para limpar strings
   private cleanText(text: any): string {
     if (!text) return "";
     return String(text)
@@ -58,7 +59,7 @@ export class SlidesSkill {
   }
 
   // ==========================================
-  // EXECUTOR REVISADO E BLINDADO DE DISCO
+  // EXECUTOR REVISADO E BLINDADO
   // ==========================================
   async execute(params: any, ctx: Context): Promise<any> {
     try {
@@ -74,12 +75,11 @@ export class SlidesSkill {
         throw new Error("Formato inválido de parâmetros.");
       }
 
-      // Se a estrutura quebrar no caminho, cria um fallback básico instantâneo
       if (!designDoc || !Array.isArray(designDoc.slides)) {
         throw new Error("Estrutura de slides ausente no payload.");
       }
 
-      // INSTANCIAÇÃO SEGURA DA BIBLIOTECA
+      // INSTANCIAÇÃO RETIFICADA CONTRA O ERRO TS2351
       const pptx = new PptxGenJS();
       pptx.layout = "LAYOUT_WIDE"; // Força o padrão Widescreen 16:9
 
@@ -150,11 +150,11 @@ export class SlidesSkill {
         filename: `apresentacao_iara_${Date.now()}.pptx`
       });
 
-      return { success: true, text: "Apresentação renderizada com sucesso." };
+      return { success: true, text: "Apresentação renderizada com sucesso do absoluto zero." };
 
     } catch (error) {
       console.error("CRITICAL DESIGN ERROR:", error);
-      await ctx.reply("Iara reportou uma inconformidade crítica no envio do lote de design.");
+      await ctx.reply("Houve um erro no processamento visual ou na estrutura dos elementos fornecidos.");
       return { success: false, text: "Abortado." };
     }
   }
