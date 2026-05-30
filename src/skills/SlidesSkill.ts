@@ -1,6 +1,6 @@
 import { Context } from "telegraf";
-// Importação compatível com o compilador TypeScript da biblioteca pptxgenjs
-const PptxGenJS = require("pptxgenjs");
+// Importação correta e compatível com "type": "module" e o compilador do TypeScript
+import pptxgen from "pptxgenjs";
 
 // ==========================================
 // ESTRUTURA DE REALIDADE DA IARA (DADOS PUROS)
@@ -79,8 +79,10 @@ export class SlidesSkill {
         throw new Error("Estrutura de slides ausente no payload.");
       }
 
-      // INSTANCIAÇÃO RETIFICADA CONTRA O ERRO TS2351
-      const pptx = new PptxGenJS();
+      // INSTANCIAÇÃO RETIFICADA PARA EVITAR ERRO TS2351 E DAR SUPORTE A ESM
+      // Acessando o construtor diretamente da propriedade default se necessário
+      const PptxConstructor: any = (pptxgen as any).default || pptxgen;
+      const pptx = new PptxConstructor();
       pptx.layout = "LAYOUT_WIDE"; // Força o padrão Widescreen 16:9
 
       // Monta os slides iterando os comandos diretos de pixel da Iara
